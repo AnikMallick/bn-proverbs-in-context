@@ -1,0 +1,10 @@
+prompt: |
+  this is prompt 1
+  test 
+  testing
+
+prompt2: |
+  this is prompt 2
+  test 
+  testing
+  {ok}

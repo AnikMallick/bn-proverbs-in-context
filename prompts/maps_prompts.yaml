@@ -1,0 +1,72 @@
+################################
+# Memorization templates: https://aclanthology.org/2024.naacl-long.112.pdf | Table 8
+################################
+
+memorization_1: |
+  Proverb: {prefix}
+
+memorization_2: |
+  Complete this proverb: {prefix}
+
+memorization_3: |
+  Finish the proverb: {prefix}
+
+memorization_4: |
+  What are the last words of this proverb: {prefix}
+# Original > What’s the last word of this proverb: no pain, no
+
+memorization_5: |
+  What's missing at the end of this proverb: {prefix}
+
+
+################################
+# Zero-shot testing template: https://aclanthology.org/2024.naacl-long.112.pdf | Table 9 & 13
+################################
+
+question_base: |
+  Question: What does the person mean by the proverb?
+  Proverb: {proverb}
+  Context: {context}
+  Choices: A: {answer_1} B: {answer_2}
+  Answer:
+
+question__more_1: |
+  Proverb: {proverb}
+  Context: {context}
+  Choices: A: {answer_1} B: {answer_2}
+  Question: What does the person mean by the
+  proverb?
+  Answer:
+
+question_more_2: |
+  Question: What is a probable interpretation of this proverb?
+  Proverb: {proverb}
+  Context: {context}
+  Choices: A: {answer_1} B: {answer_2}
+  Please choose between A and B.
+  Answer:
+
+question_more_3: |
+  Question: How would one interpret this proverb given the context?
+  Proverb: {proverb}
+  Context: {context}
+  Choices: A: {answer_1} B: {answer_2}
+  Answer:
+
+
+################################
+# Memorization mask templates: https://aclanthology.org/2024.naacl-long.112.pdf | Table 11
+################################
+
+mask_1: |
+  Fill the missing token: {masked_proverb}
+  Answer:
+
+mask_2: |
+  What is the missing word in this proverb: {masked_proverb}
+  Answer:
+
+mask_3: |
+  What is the masked word in this proverb: {masked_proverb}
+  Answer:
+

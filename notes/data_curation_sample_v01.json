@@ -1,0 +1,69 @@
+{
+  "item_id": "bn_0002",
+  "version": 1,
+
+  "proverb": {
+    "proverb_id": "prv_042",
+    "bengali": "গাছে কাঁঠাল গোঁফে তেল",
+    "romanised": "Gachhe kanthal, gnofe tel.",
+    "respelled": "Gachhe kanthal, gnofe tael.",
+    "literal_gloss": "Jackfruit on the tree, oil on the moustache.",
+    "meaning": {
+      "en": "Getting ready to enjoy a gain before you actually have it.",
+      "bn": "কোনো কিছু হাতে পাওয়ার আগেই তা ভোগ করার প্রস্তুতি নেওয়া।"
+    },
+    "figurative": true,
+    "region": "both",
+    "cultural_note": "People oil their lips and moustache before eating jackfruit so the sticky sap doesn't cling.",
+    "false_friends": [
+            "tel→tell"
+        ]
+  },
+
+  "memorisation": {
+    "bengali":   {"prefix": "গাছে কাঁঠাল গোঁফে", "target": "তেল"},
+    "romanised": {"prefix": "Gachhe kanthal, gnofe", "target": "tel"}
+  },
+  
+  "en": {
+    "turns": [
+      {"speaker": "Arko", "text": "Once I get the startup internship I'm buying a new phone. I've already ordered the cover!"},
+      {"speaker": "Mitali", "text": "Your interview hasn't even happened yet. Gachhe kanthal, gnofe tel."}
+    ],
+    "proverb_speaker": "Mitali",
+    "options": {
+      "correct":   "Arko is preparing to enjoy the internship's rewards before he has even got it.",
+      "literal":   "There is a jackfruit on the tree and oil on someone's moustache.",
+      "plausible": "Arko should prepare early, because early preparation brings success."
+    }
+  },
+
+  "bn": {
+    "turns": [
+      {"speaker": "অর্ক", "text": "স্টার্টআপের ইন্টার্নশিপটা পেলেই নতুন ফোন কিনব। কভারটা তো অর্ডার করেই দিয়েছি!"},
+      {"speaker": "মিতালী", "text": "তোর তো এখনও ইন্টারভিউই হয়নি। গাছে কাঁঠাল গোঁফে তেল।"}
+    ],
+    "proverb_speaker": "মিতালী",
+    "options": {
+      "correct":   "ইন্টার্নশিপটা পাওয়ার আগেই অর্ক তার সুবিধা ভোগ করার তোড়জোড় শুরু করে দিয়েছে।",
+      "literal":   "গাছে একটা কাঁঠাল ঝুলছে আর কারও মোচে তেল মাখানো।",
+      "plausible": "অর্কর আগে থেকে প্রস্তুতি নেওয়া উচিত, কারণ আগাম প্রস্তুতিই সাফল্য আনে।"
+    }
+  },
+
+  "maps": {
+    "in_maps": false,
+    "maps_ref": null
+  },
+
+  "meta": {
+    "split": "test",
+    "subsets": [],
+    "author": "you",
+    "created": "2026-10-12",
+    "updated": "2026-10-12",
+    "romanisation_scheme": "v1",
+    "stereotype_flag": false,
+    "annotator2": {"label": null, "agreed": null, "comment": null}
+  }
+}

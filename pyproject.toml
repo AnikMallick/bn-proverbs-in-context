@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "probad"
+version = "0.1.0"
+description = "ProBaD: Proverbs in Bangla Dialogue. Cultural alignment of small LMs for contextual understanding of Bengali proverbs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Anik Mallick" }]
+keywords = ["nlp", "proverbs", "bengali", "cultural-alignment", "olmo", "logprobs", "benchmark"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence :: LLM :: NLP",
+]
+
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "jsonschema>=4.20",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "torch>=2.3",
+    "transformers>=4.57",     # OLMo 2 needs >=4.47; Olmo 3 needs a recent release
+    "accelerate>=1.0",
+    "tokenizers>=0.20",
+    "peft>=0.13",
+    "trl>=0.20",
+    "datasets>=3.0",
+    "bitsandbytes>=0.43; platform_system == 'Linux'",
+    "openai>=1.40",
+    "anthropic>=0.40",
+    "gepa>=0.1",
+    "matplotlib>=3.8"
+]
