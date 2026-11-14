@@ -37,12 +37,9 @@ PUNCT = ".,!?;:।'\"‘’“”"
 
 
 def load_model(name, dtype=None):
-    """CUDA (Kaggle), MPS (Mac) or CPU. bf16 on Ampere+ GPUs, else float32 (T4 has no bf16; fp16 can overflow)."""
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-    if dtype is None:
-        dtype = torch.bfloat16 if device == "cuda" and torch.cuda.get_device_capability()[0] >= 8 else torch.float32
     tok = AutoTokenizer.from_pretrained(name)
-    model = AutoModelForCausalLM.from_pretrained(name, dtype).to(device).eval()
+    model = AutoModelForCausalLM.from_pretrained(name).to(device).eval()
     return model, tok
 
 
@@ -52,10 +49,6 @@ def format_prompt(tok, prompt, system=None, chat=False):
         return f"{system}\n\n{prompt}" if system else prompt
     messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
     return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-
-def shown_letters(gold:str):
-    return OPTIONS[:OPTIONS.index(gold.lower())+1]
 
 
 @torch.inference_mode()
@@ -74,27 +67,16 @@ def letter_id(tok, letter, chat=False):
     return ids[-1] if len(ids) > 1 and tok.decode(ids[:1]).strip() == "" else ids[0]
 
 
-def _cases(built, system):
-    """make() returns (prompt, gold), (system, prompt, gold) for x8, or {variant: (prompt, gold)} for x9."""
-    if built is None:
-        return []
-    if isinstance(built, dict):
-        return [(v, system, *pg) for v, pg in built.items() if pg is not None]
-    if len(built) == 3:
-        return [("", *built)]
-    return [("", system, *built)]
-
 def item_info(it):
     return {"item_id": it["item_id"], "proverb_id": it["proverb"]["proverb_id"],
             "figurative": it["proverb"]["figurative"], "split": it["meta"]["split"],
             "subsets": it["meta"].get("subsets", [])}
 
 # mcq
-def answer_one(model, tok, prompt, gold, system=None, chat=False):
+def answer_one(model, tok, prompt: str, gold:str, options: list[str], system=None, chat=False):
     """Score one MCQ prompt: log P of each shown letter as the next token."""
-    letters = shown_letters(gold)
     logp = next_token_logprobs(model, tok, format_prompt(tok, prompt, system, chat), chat)
-    lp = {L: logp[letter_id(tok, L, chat)].item() for L in letters}
+    lp = {L: logp[letter_id(tok, L, chat)].item() for L in options}
     mass = sum(math.exp(v) for v in lp.values())
     pred = max(lp, key=lp.get)
     return {"gold": gold.lower(), "pred": pred, "correct": pred.lower() == gold.lower(),
@@ -104,7 +86,7 @@ def answer_one(model, tok, prompt, gold, system=None, chat=False):
 
 # memorization
 @torch.inference_mode()
-def generate(model, tok, prompt, max_new_tokens=4):
+def generate(model, tok, prompt:str, max_new_tokens=4):
     """Greedy continuation (MAPS used max_new_tokens=4)."""
     enc = tok(prompt, return_tensors="pt").to(model.device)
     out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,

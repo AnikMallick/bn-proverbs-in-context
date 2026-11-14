@@ -50,7 +50,7 @@ def mcq(item, lang="bn", question="pos", keys=("correct", "plausible"), seed=0, 
     q = f"Question: {QUESTIONS[question]}\n" if question else ""
     prompt = f"{q}Proverb:'{p}'\nContext: {c}\nChoices: {choices}\nAnswer:".lower()
     gold = "correct" if question in ("pos", None) else [k for k in keys if k != "correct"][0]
-    return prompt, letter[gold]
+    return prompt, letter[gold], list("abcd"[:len(letter.keys())])
 
 
 # maps experiments
@@ -95,8 +95,8 @@ def e7_few_shot(item, demo_items, k=2, seed=0):
     """k demos (from val, never test) + the test prompt."""
     rng = random.Random(seed)
     demos = [e2_reasoning(d, seed=rng.random()) for d in rng.sample(demo_items, k)]
-    prompt, gold = e2_reasoning(item, seed=seed)
-    return "\n".join(f"{p} {a}" for p, a in demos) + "\n" + prompt, gold
+    prompt, gold, all_options = e2_reasoning(item, seed=seed)
+    return "\n".join(f"{p} {a}" for p, a, o in demos) + "\n" + prompt, gold, all_options
 
 
 def e9_template(item, template=1, seed=0):
@@ -110,7 +110,7 @@ def e9_template(item, template=1, seed=0):
         3: f"Question: How would one interpret this proverb given the context?\nProverb:'{p}'\nContext: {c}\n"
            f"Choices: {choices}\nAnswer:",
     }[template]
-    return t.lower(), letter["correct"]
+    return t.lower(), letter["correct"], list("abcd"[:len(letter.keys())])
 
 # my experiment
 OWN = {
@@ -165,7 +165,7 @@ def own_mcq(item, lang, opts, gold, head, question, seed=0, none_last=False):
     lines = "\n".join(f"{L}. {opts[k]}" for L, k in zip("ABC", keys))
     q = f"{t['q']} {question}\n" if question else ""
     prompt = f"{head}\n\n{q}{lines}\n{t['answer']}"
-    return prompt, "abc"[keys.index(gold)]
+    return prompt, "abc"[keys.index(gold)], list("abcd"[:len(keys)])
 
 
 def x1_correct_vs_literal(item, lang="en", render="romanised", seed=0):
@@ -226,8 +226,8 @@ def x7_no_question(item, lang="en", seed=0):
 def x8_system_prompt(item, condition="C1b", lang="en", seed=0, system=None):
     """C0 / C1a / C1b persona prompts; pass system=<GEPA best prompt> for C1c.
     Returns (system, prompt, gold)."""
-    prompt, gold = x1_correct_vs_literal(item, lang, seed=seed)
-    return (system if system is not None else SYSTEM_PROMPTS[condition]), prompt, gold
+    prompt, gold, all_options = x1_correct_vs_literal(item, lang, seed=seed)
+    return (system if system is not None else SYSTEM_PROMPTS[condition]), prompt, gold, all_options
 
 
 def x9_false_friend_pair(item, seed=0):
