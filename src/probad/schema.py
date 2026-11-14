@@ -1,16 +1,3 @@
-"""Data model for ProBaD test/training items, the proverb sheet, and validation.
-
-One test item = one JSON object per line in ``test_v1.jsonl`` (see Appendix C of
-the project plan). The builder generates question formats, option orders and
-renders from it, so formats are never stored by hand.
-
-Validation has two layers:
-  1. structural (JSON Schema, via ``jsonschema``), and
-  2. semantic checks (proverb present in the speaker's turn, distinct options,
-     Bengali literal distractor not copying the proverb, subset rules, ...).
-Each problem is returned as an ``Issue`` with level ``error`` or ``warning``.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -20,7 +7,6 @@ from typing import Any, Iterator, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from probad.utils import content_words, normalise_text, read_jsonl, words, write_jsonl, load_english_stopwords, load_bengali_stopwords
-from probad.constants import OPTION_KEYS
 
 EN_STOPWORDS = load_english_stopwords()
 
@@ -38,8 +24,6 @@ class Options(BaseModel):
     plausible: str = Field(..., description="plausible meaning of the proverb")
 
     def get(self, key: str) -> str:
-        if key not in OPTION_KEYS:
-            raise KeyError(key)
         return getattr(self, key)
 
 

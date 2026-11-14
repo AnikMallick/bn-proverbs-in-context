@@ -1,82 +1,106 @@
-"""From per-instance results to report numbers: order collapsing, accuracy with CIs, paired comparison."""
+import math
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
-from probad.constants import FORMAT_CHANCE
+KEYS = ["model", "label", "variant", "item_id", "proverb_id", "figurative"]
 
-SETTING = ["model", "condition", "lang", "render", "format", "control"]
-META = ["proverb_id", "figurative", "has_false_friends", "region"]
-
-
-def item_level(df, strict=False):
-    """One row per item and setting, collapsing the option orders.
-
-    Averaged (default): mean probability of each option over the orders, then the highest wins.
-    Strict: correct only if correct in every order.
-    """
-    g = df.groupby(SETTING + ["item_id"], sort=False)
-    p_cols = [c for c in df.columns if c.startswith("p_")]
-    items = g[p_cols].mean()
-    items["pred_key"] = items[p_cols].idxmax(axis=1).str.removeprefix("p_")
-    items["gold_key"] = g["gold_key"].first()
-    items["correct"] = g["correct"].all() if strict else items["pred_key"] == items["gold_key"]
-    items["margin"] = g["margin"].mean()
-    meta = [c for c in META if c in df.columns]
-    items[meta] = g[meta].first()
-    return items.reset_index()
+def p_gold(df):
+    """Probability on the gold letter (does not depend on option order, unlike p_a / p_b)."""
+    return df.apply(lambda r: r[f"p_{r['gold'].lower()}"], axis=1)
 
 
-def _ci(x, n_boot=2000, seed=0):
-    """95% percentile bootstrap CI of the mean."""
-    if len(x) < 2:
-        return np.nan, np.nan
-    ci = stats.bootstrap((x,), np.mean, n_resamples=n_boot, method="percentile", rng=seed).confidence_interval
-    return ci.low, ci.high
+def chance(df):
+    """1 / number of options shown."""
+    return 1 / df.filter(regex=r"^p_[a-z]$").notna().sum(axis=1)
 
 
-def accuracy(items, by=("model", "condition", "format")):
-    """Accuracy per group with a bootstrap CI over items, mean margin and chance level."""
-    by = list(by)
+# collapse option orders
+def item_level(df, mode="averaged"):
+    """Rows for the same item scored with several option orders (seed=0, 1, ...) -> one row per item.
+    averaged: share of orders correct (soft); strict: 1 only if every order is correct."""
+    df = df.assign(p_gold=p_gold(df), chance=chance(df))
+    keys = [k for k in KEYS if k in df]
+    g = df.groupby(keys, dropna=False)
+    out = g.agg(correct=("correct", "mean" if mode == "averaged" else "all"), p_gold=("p_gold", "mean"),
+                margin=("margin", "mean"), letter_mass=("letter_mass", "mean"), chance=("chance", "first"),
+                n_orders=("correct", "size")).reset_index()
+    out["correct"] = out["correct"].astype(float)
+    return out
+
+
+# ---------------------------------------------------------------- accuracy with CIs
+def _boot(values, clusters, n=2000, seed=0):
+    """Bootstrap means, resampling whole proverbs (items of one proverb are not independent)."""
+    _, inv = np.unique(np.asarray(clusters), return_inverse=True)
+    sums, counts = np.bincount(inv, np.asarray(values, float)), np.bincount(inv)
+    pick = np.random.default_rng(seed).integers(0, len(counts), (n, len(counts)))
+    return sums[pick].sum(1) / counts[pick].sum(1)
+
+
+def bootstrap(values, clusters, n=2000, seed=0):
+    """Mean and 95% CI."""
+    return float(np.mean(values)), *np.percentile(_boot(values, clusters, n, seed), [2.5, 97.5])
+
+
+def accuracy(items, by=None):
+    """Accuracy, 95% CI and chance per group (by = column name or list, e.g. "figurative", ["model", "label"])."""
+    by = [by] if isinstance(by, str) else list(by or [])
     rows = []
-    for key, g in items.groupby(by, sort=False):
-        x = g["correct"].to_numpy(float)
-        low, high = _ci(x)
-        row = {**dict(zip(by, key)), "n": len(x), "acc": x.mean(), "ci_low": low, "ci_high": high, "margin": g["margin"].mean()}
-        if "format" in by:
-            row["chance"] = FORMAT_CHANCE[row["format"]]
-        rows.append(row)
+    for key, g in (items.groupby(by) if by else [((), items)]):
+        acc, lo, hi = bootstrap(g["correct"], g["proverb_id"])
+        rows.append({**dict(zip(by, key if isinstance(key, tuple) else (key,))), "acc": acc, "ci_lo": lo,
+                     "ci_hi": hi, "chance": g["chance"].mean(), "n": len(g)})
     return pd.DataFrame(rows)
 
 
-def compare(items, a, b, by=("model", "format")):
-    """Condition `a` vs `b` on the same items: accuracy difference (bootstrap CI) and McNemar's exact test."""
-    keys = [c for c in SETTING if c != "condition"] + ["item_id"]
-    pair = pd.concat(
-        {name: items[items["condition"] == name].set_index(keys)["correct"] for name in (a, b)}, axis=1, join="inner"
-    ).reset_index()
-    by = list(by)
-    rows = []
-    for key, g in pair.groupby(by, sort=False):
-        diff = g[a].to_numpy(float) - g[b].to_numpy(float)
-        a_only, b_only = int((g[a] & ~g[b]).sum()), int((~g[a] & g[b]).sum())  # discordant pairs
-        p = stats.binomtest(a_only, a_only + b_only).pvalue if a_only + b_only else 1.0
-        low, high = _ci(diff)
-        rows.append(
-            {
-                "a": a,
-                "b": b,
-                **dict(zip(by, key)),
-                "n": len(g),
-                "acc_a": g[a].mean(),
-                "acc_b": g[b].mean(),
-                "diff": diff.mean(),
-                "ci_low": low,
-                "ci_high": high,
-                "only_a": a_only,  # items only `a` gets right
-                "only_b": b_only,
-                "p_mcnemar": p,
-            }
-        )
-    return pd.DataFrame(rows)
+# ---------------------------------------------------------------- comparing two conditions
+def mcnemar(a, b):
+    """Exact two-sided McNemar p on paired 0/1 outcomes."""
+    a, b = np.asarray(a) >= 0.5, np.asarray(b) >= 0.5
+    n01, n10 = int((~a & b).sum()), int((a & ~b).sum())
+    n, k = n01 + n10, min(n01, n10)
+    p = min(1.0, 2 * sum(math.comb(n, i) for i in range(k + 1)) / 2 ** n) if n else 1.0
+    return {"a_only": n10, "b_only": n01, "p_mcnemar": p}
+
+
+def compare(a, b, on="item_id", n=2000, seed=0):
+    """Paired difference b - a on the items both have (e.g. C0 vs C1b, bn vs en, base vs adapter).
+    CI by resampling proverbs; p = share of bootstrap differences on the other side of 0, x2."""
+    m = a.merge(b, on=[on, "proverb_id"], suffixes=("_a", "_b"))
+    d = m["correct_b"] - m["correct_a"]
+    boot = _boot(d, m["proverb_id"], n, seed)
+    diff, (lo, hi) = d.mean(), np.percentile(boot, [2.5, 97.5])
+    p = min(1.0, 2 * min((boot <= 0).mean(), (boot >= 0).mean()))
+    return {"acc_a": m["correct_a"].mean(), "acc_b": m["correct_b"].mean(), "diff": diff,
+            "ci_lo": lo, "ci_hi": hi, "p_boot": p, **mcnemar(m["correct_a"], m["correct_b"]), "n": len(m)}
+
+
+def kappa(a, b):
+    """Cohen's kappa between two label lists (e.g. predictions of two conditions, or two annotators)."""
+    a, b = pd.Series(list(a)), pd.Series(list(b))
+    po = (a == b).mean()
+    pe = sum((a == c).mean() * (b == c).mean() for c in set(a) | set(b))
+    return (po - pe) / (1 - pe) if pe < 1 else 1.0
+
+
+# ---------------------------------------------------------------- knowing (E1) vs using (E2/x1)
+def memorised(mem):
+    """MAPS rule: a proverb is memorised if any template completes it. One row per proverb x render."""
+    return mem.groupby(["model", "proverb_id", "render"])["correct"].any().reset_index(name="memorised")
+
+
+def memorisation_rate(mem):
+    k = memorised(mem)
+    return accuracy(k.rename(columns={"memorised": "correct"}).assign(chance=0.0), by=["model", "render"])
+
+
+def knowing_vs_using(items, know, render="bengali"):
+    """Accuracy for memorised vs not memorised proverbs, their difference, and the four quadrants."""
+    k = know[know["render"] == render][["model", "proverb_id", "memorised"]]
+    df = items.merge(k, on=["model", "proverb_id"], how="left").fillna({"memorised": False})
+    df["memorised"] = df["memorised"].astype(bool)
+    acc = accuracy(df, by="memorised")
+    q = df.assign(quadrant=[("know" if m else "dont_know") + "+" + ("use" if c >= 0.5 else "dont_use")
+                            for m, c in zip(df["memorised"], df["correct"])])["quadrant"].value_counts()
+    return {"by_memorised": acc, "quadrants": q.to_dict(), "n_memorised": int(df["memorised"].sum())}

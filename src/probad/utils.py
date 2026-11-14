@@ -6,7 +6,6 @@ from typing import Any
 import unicodedata
 from functools import cache
 from pathlib import Path
-from probad.constants import BN_STOPWORD_PATH
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 
@@ -46,17 +45,14 @@ def load_english_stopwords() ->frozenset:
 
 
 @cache
-def load_bengali_stopwords() -> frozenset:
-    source = Path(__file__).parent / BN_STOPWORD_PATH
-    # source = Path(BN_STOPWORD_PATH)
-
+def load_bengali_stopwords(file_path: Path) -> frozenset:
     try:
-        data: Any = json.loads(source.read_text(encoding="utf-8-sig"))
+        data: Any = json.loads(file_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
-        raise FileNotFoundError(f"Stopword file not found: {source}") from exc
+        raise FileNotFoundError(f"Stopword file not found: {file_path}") from exc
     except json.JSONDecodeError as exc:
         raise ValueError(
-            f"Invalid JSON in stopword file {source}: "
+            f"Invalid JSON in stopword file {file_path}: "
             f"line {exc.lineno}, column {exc.colno}: {exc.msg}"
         ) from exc
     

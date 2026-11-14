@@ -1,33 +1,48 @@
-"""Letter log-prob scoring with a Hugging Face causal LM, one prompt at a time.
+"""Score the simple_maps.py experiments with a Hugging Face causal LM.
 
-For each prompt instance: log P(" A"), log P(" B"), ... as the next token after "Answer:".
-The probabilities are renormalised over the letters shown and stored per *option key*
-(p_correct, p_literal, ...), so averaging over option orders later is a plain groupby.
+Multiple choice: log P(letter) as the next token after "Answer:"/"answer:"/"উত্তর:", over the letters shown.
+Memorisation (e1): greedy generation.
+
+    from simple_maps import *
+    model, tok = load_model("allenai/OLMo-2-0425-1B")
+    test, maps, val = load("test.jsonl"), load("maps_clean.jsonl"), load("val.jsonl")
+
+    e2 = score(model, tok, maps, e2_reasoning, label="E2", out="results/olmo1b/e2.jsonl")
+    e6 = score(model, tok, maps, e6_translation, label="E6_gloss", condition="en_gloss")
+    e7 = score(model, tok, maps, e7_few_shot, label="E7_k5", demo_items=val, k=5)
+    x1 = score(model, tok, test, x1_correct_vs_literal, label="x1_bn", lang="bn")
+    x8 = score(model, tok, test, x8_system_prompt, label="x8_C1b", condition="C1b")   # system comes from x8
+    x9 = score(model, tok, test, x9_false_friend_pair, label="x9")                    # one row per variant
+    x1_chat = score(model, tok, test, x1_correct_vs_literal, chat=True)               # instruct models
+
+    mem = pd.concat([generate_all(model, tok, maps, e1_memorisation, render=r, template=t)
+                     for r in ("bengali", "romanised") for t in range(5)])
+    memorised = mem.groupby(["proverb_id", "render"]).correct.any()                   # MAPS: any template
+
+    e2.correct.mean(); e2.groupby("figurative").correct.mean()                        # E2, E4
 """
 
 import math
+import re
 from pathlib import Path
 
 import pandas as pd
 import torch
 from tqdm.auto import tqdm
+import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from probad.constants import LETTERS
-
-INSTANCE_COLS = {"instance_id", "item_id", "proverb_id", "lang", "render", "format", "control", "gold_key"}
+OPTIONS = ["a", "b", "c", "d", "e"]
+PUNCT = ".,!?;:।'\"‘’“”"
 
 
 def load_model(name, dtype=None):
-    """Load a model on CUDA (Kaggle), MPS (Mac) or CPU.
-
-    Default dtype: bfloat16 on Ampere+ GPUs, else float32 (a T4 has no bf16, and fp16 can overflow).
-    """
+    """CUDA (Kaggle), MPS (Mac) or CPU. bf16 on Ampere+ GPUs, else float32 (T4 has no bf16; fp16 can overflow)."""
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     if dtype is None:
         dtype = torch.bfloat16 if device == "cuda" and torch.cuda.get_device_capability()[0] >= 8 else torch.float32
     tok = AutoTokenizer.from_pretrained(name)
-    model = AutoModelForCausalLM.from_pretrained(name, dtype=dtype).to(device).eval()
+    model = AutoModelForCausalLM.from_pretrained(name, dtype).to(device).eval()
     return model, tok
 
 
@@ -39,54 +54,130 @@ def format_prompt(tok, prompt, system=None, chat=False):
     return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
 
+def shown_letters(gold:str):
+    return OPTIONS[:OPTIONS.index(gold.lower())+1]
+
+
 @torch.inference_mode()
 def next_token_logprobs(model, tok, text, chat=False):
-    """Log-probabilities over the vocabulary for the token after `text`."""
-    enc = tok(text, return_tensors="pt", add_special_tokens=not chat).to(model.device)  # chat templates include BOS
-    logp = torch.log_softmax(model(**enc, logits_to_keep=1).logits[0, -1].float(), dim=-1)
+    enc = tok(text, return_tensors="pt", add_special_tokens=not chat).to(model.device)  # chat templates add BOS
+    logp = torch.log_softmax(model(**enc).logits[0, -1].float(), dim=-1)
     if torch.isnan(logp).any():
         raise ValueError("NaN log-probs: the model overflowed; load it in float32")
     return logp
 
 
-def letter_ids(tok, chat=False):
-    """Token id of each answer letter: " A" after "Answer:" (plain), "A" right after a chat template."""
-    ids = {}
-    for letter in LETTERS:
-        enc = tok.encode(letter if chat else " " + letter, add_special_tokens=False)
-        assert len(enc) == 1, f"{letter!r} is not a single token for this tokenizer"
-        ids[letter] = enc[0]
-    return ids
+def letter_id(tok, letter, chat=False):
+    """Token for the letter: ' a' after 'answer:' (plain text), 'a' right after a chat template.
+    If the tokenizer splits it, the first piece is used."""
+    ids = tok.encode(letter if chat else " " + letter, add_special_tokens=False)
+    return ids[-1] if len(ids) > 1 and tok.decode(ids[:1]).strip() == "" else ids[0]
 
 
-def score(model, tok, instances, condition="C0", system=None, chat=False, model_name=None, out=None):
-    """One row per instance. If `out` already exists it is loaded instead of re-scoring."""
-    if out and Path(out).exists():
-        return pd.read_json(out, lines=True)
-    ids = letter_ids(tok, chat)
-    rows = []
-    for inst in tqdm(instances, desc=condition):
-        logp = next_token_logprobs(model, tok, format_prompt(tok, inst.prompt, system, chat), chat)
-        lp = {L: logp[ids[L]].item() for L in inst.letters}
-        mass = sum(math.exp(v) for v in lp.values())  # total probability on the shown letters
-        gold, pred = inst.gold_letter, max(lp, key=lp.get)
-        rows.append(
-            {
-                "model": model_name or model.name_or_path,
-                "condition": condition,
-                **inst.model_dump(include=INSTANCE_COLS),
-                **inst.meta,
-                "order": ">".join(inst.option_keys),
-                **{f"lp_{k}": lp[L] for L, k in zip(inst.letters, inst.option_keys)},
-                **{f"p_{k}": math.exp(lp[L]) / mass for L, k in zip(inst.letters, inst.option_keys)},
-                "pred_key": inst.key_of(pred),
-                "correct": pred == gold,
-                "margin": lp[gold] - max(v for L, v in lp.items() if L != gold),
-                "letter_mass": mass,
-            }
-        )
-    df = pd.DataFrame(rows)
-    if out:
-        Path(out).parent.mkdir(parents=True, exist_ok=True)
-        df.to_json(out, orient="records", lines=True, force_ascii=False)
-    return df
+def _cases(built, system):
+    """make() returns (prompt, gold), (system, prompt, gold) for x8, or {variant: (prompt, gold)} for x9."""
+    if built is None:
+        return []
+    if isinstance(built, dict):
+        return [(v, system, *pg) for v, pg in built.items() if pg is not None]
+    if len(built) == 3:
+        return [("", *built)]
+    return [("", system, *built)]
+
+def item_info(it):
+    return {"item_id": it["item_id"], "proverb_id": it["proverb"]["proverb_id"],
+            "figurative": it["proverb"]["figurative"], "split": it["meta"]["split"],
+            "subsets": it["meta"].get("subsets", [])}
+
+# mcq
+def answer_one(model, tok, prompt, gold, system=None, chat=False):
+    """Score one MCQ prompt: log P of each shown letter as the next token."""
+    letters = shown_letters(gold)
+    logp = next_token_logprobs(model, tok, format_prompt(tok, prompt, system, chat), chat)
+    lp = {L: logp[letter_id(tok, L, chat)].item() for L in letters}
+    mass = sum(math.exp(v) for v in lp.values())
+    pred = max(lp, key=lp.get)
+    return {"gold": gold.lower(), "pred": pred, "correct": pred.lower() == gold.lower(),
+            **{f"p_{L.lower()}": math.exp(v) / mass for L, v in lp.items()},
+            "margin": lp[gold] - max(v for L, v in lp.items() if L != gold.lower()),
+            "letter_mass": mass}
+
+# memorization
+@torch.inference_mode()
+def generate(model, tok, prompt, max_new_tokens=4):
+    """Greedy continuation (MAPS used max_new_tokens=4)."""
+    enc = tok(prompt, return_tensors="pt").to(model.device)
+    out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
+                         pad_token_id=tok.pad_token_id or tok.eos_token_id)
+    return tok.decode(out[0, enc.input_ids.shape[1]:], skip_special_tokens=True)
+
+# validators
+def check_choice(output, gold):
+    """The model's first token is the gold letter (" a", "B.", "(c)" all count)."""
+    m = re.match(r"\W*([abc])\b", output.strip().lower())
+    return bool(m) and m.group(1) == gold
+
+
+def check_memorisation(output, missing_word):
+    """Output starts with (or contains) the missing last word."""
+    out = " ".join(output.lower().translate(str.maketrans("", "", PUNCT)).split())
+    return missing_word.strip(PUNCT) in out.split()[:3] if out else False
+
+
+def check_memorisation_graded(output, missing_word):
+    """0-1 partial credit: best character similarity between the missing word and any of the first 3 words."""
+    from difflib import SequenceMatcher
+    words = output.lower().translate(str.maketrans("", "", PUNCT)).split()[:3]
+    target = missing_word.strip(PUNCT).lower()
+    return max((SequenceMatcher(None, target, w).ratio() for w in words), default=0.0)
+
+# from copy import copy
+# def run(items, make, llm, check=check_choice, system=None, **kw):
+#     """make(item, **kw) -> (prompt, gold); llm(prompt, system) -> text.
+#     Returns one record per item; accuracy = mean of record["correct"]."""
+#     records = []
+#     for it in items:
+#         built = make(it, **kw)
+#         if built is None:                      # e.g. no respelling / one-word proverb
+#             continue
+#         prompt, gold = built
+#         output = llm(prompt, system)
+#         records.append({"item_id": it["item_id"], "proverb_id": it["proverb"]["proverb_id"],
+#                         "figurative": it["proverb"]["figurative"], "prompt": prompt, "gold": gold,
+#                         "output": output, "correct": float(check(output, gold)), "correct_choice": check.__name__})
+#     return records
+
+# def quadrant(memorised, correct):
+#     """Knowing vs using per proverb: know+use, know-only, use-only, neither."""
+#     return {(True, True): "know+use", (True, False): "know_only",
+#             (False, True): "use_only", (False, False): "neither"}[(bool(memorised), bool(correct))]
+
+# def accuracy(records, key=None):
+#     """Overall accuracy, or per group if key is given (e.g. key="figurative")."""
+#     if key is None:
+#         return sum(r["correct"] for r in records) / max(len(records), 1)
+#     groups = {}
+#     for r in records:
+#         groups.setdefault(r[key], []).append(r["correct"])
+#     return {g: sum(v) / len(v) for g, v in groups.items()}
+
+# def run_only(items, make, llm, system=None, **kw):
+#     """make(item, **kw) -> (prompt, gold); llm(prompt, system) -> text.
+#     Returns one record per item; accuracy = mean of record["correct"]."""
+#     records = []
+#     for it in items:
+#         built = make(it, **kw)
+#         if built is None:                      # e.g. no respelling / one-word proverb
+#             continue
+#         prompt, gold = built
+#         output = llm(prompt, system)
+#         records.append({"item_id": it["item_id"], "proverb_id": it["proverb"]["proverb_id"],
+#                         "figurative": it["proverb"]["figurative"], "prompt": prompt, "gold": gold,
+#                         "output": output})
+#     return records
+
+# def check(record, check: Callable[[str,str], float | bool]=check_choice):
+#     r = copy(record)
+#     r["correct"] = float(check(output, gold))
+#     r["correct_choice"] = check.__name__
+#     return r
