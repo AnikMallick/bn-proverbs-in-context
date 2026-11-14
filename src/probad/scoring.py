@@ -31,16 +31,104 @@ import torch
 from tqdm.auto import tqdm
 import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import queue
+import threading
 
 OPTIONS = ["a", "b", "c", "d", "e"]
 PUNCT = ".,!?;:।'\"‘’“”"
 
-
+# model - single
 def load_model(name, dtype=None):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     tok = AutoTokenizer.from_pretrained(name)
     model = AutoModelForCausalLM.from_pretrained(name).to(device).eval()
     return model, tok
+
+# model with pool -> to be used with thread pool
+# from concurrent.futures import ThreadPoolExecutor <- usage
+
+# def process_item(item):
+#     r = exp.e5_negated(item.model_dump(), question="neg")
+
+#     return answer_one(
+#         model, tok,
+#         r[0], r[1], r[2],
+#         system=None,
+#         chat=False
+#     )
+
+
+# with ThreadPoolExecutor(max_workers=2) as executor:
+#     results = list(executor.map(process_item, train_data[:10]))
+
+# print(results)
+
+
+
+class LoadBalancedModel:
+
+    def __init__(self, name, gpu_ids=(0, 1), dtype=None):
+
+        self.models = []
+        self.devices = []
+        self.pool = queue.Queue()
+        self.local = threading.local()
+        self.name = name
+
+        if dtype is None:
+            dtype = torch.float16
+
+        self.tok = AutoTokenizer.from_pretrained(name)
+
+        for gpu_id in gpu_ids:
+            device = f"cuda:{gpu_id}"
+
+            model = AutoModelForCausalLM.from_pretrained(
+                name,
+                torch_dtype=dtype
+            ).to(device).eval()
+
+            self.models.append(model)
+            self.devices.append(device)
+            self.pool.put(len(self.models) - 1)
+
+    @property
+    def device(self):
+        # Reserve a free model for this thread
+        idx = self.pool.get()
+        self.local.idx = idx
+        return self.devices[idx]
+
+    def _release(self):
+        idx = getattr(self.local, "idx", None)
+
+        if idx is not None:
+            del self.local.idx
+            self.pool.put(idx)
+
+    def __call__(self, *args, **kwargs):
+        idx = getattr(self.local, "idx", None)
+
+        if idx is None:
+            idx = self.pool.get()
+
+        try:
+            return self.models[idx](*args, **kwargs)
+        finally:
+            self.local.idx = None
+            self.pool.put(idx)
+
+    def generate(self, *args, **kwargs):
+        idx = getattr(self.local, "idx", None)
+
+        if idx is None:
+            idx = self.pool.get()
+
+        try:
+            return self.models[idx].generate(*args, **kwargs)
+        finally:
+            self.local.idx = None
+            self.pool.put(idx)
 
 
 def format_prompt(tok, prompt, system=None, chat=False):
@@ -92,6 +180,7 @@ def generate(model, tok, prompt:str, max_new_tokens=4):
     out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
                          pad_token_id=tok.pad_token_id or tok.eos_token_id)
     return tok.decode(out[0, enc.input_ids.shape[1]:], skip_special_tokens=True)
+
 
 # validators
 def check_choice(output, gold):
