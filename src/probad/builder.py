@@ -2,6 +2,7 @@ import json
 import random
 import re
 
+PUNCT = ".,!?;:।'\"‘’“”"
 
 # MAPS exp
 QUESTIONS = {
