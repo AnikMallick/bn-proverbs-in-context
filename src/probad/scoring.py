@@ -161,15 +161,29 @@ def item_info(it):
             "subsets": it["meta"].get("subsets", [])}
 
 # mcq
-def answer_one(model, tok, prompt: str, gold:str, options: list[str], system=None, chat=False):
-    """Score one MCQ prompt: log P of each shown letter as the next token."""
+# def answer_one(model, tok, prompt: str, gold:str, options: list[str], system=None, chat=False):
+#     """Score one MCQ prompt: log P of each shown letter as the next token."""
+#     logp = next_token_logprobs(model, tok, format_prompt(tok, prompt, system, chat), chat)
+#     lp = {L: logp[letter_id(tok, L, chat)].item() for L in options}
+#     mass = sum(math.exp(v) for v in lp.values())
+#     pred = max(lp, key=lp.get)
+#     return {"gold": gold.lower(), "pred": pred, "correct": pred.lower() == gold.lower(),
+#             **{f"p_{L.lower()}": math.exp(v) / mass for L, v in lp.items()},
+#             "margin": lp[gold] - max(v for L, v in lp.items() if L != gold.lower()),
+#             "letter_mass": mass}
+
+def answer_one(model, tok, prompt: str, gold: str, options: list[str], system=None, chat=False):
+    """Score one MCQ prompt: log P of each shown letter as the next token, in the case the prompt shows."""
+    upper = bool(re.search(r"^A\. ", prompt, flags=re.M))       # own prompts: "A. ..."; MAPS prompts: "a: ..."
+    letters = [L.upper() if upper else L.lower() for L in options]
+    gold = gold.upper() if upper else gold.lower()
     logp = next_token_logprobs(model, tok, format_prompt(tok, prompt, system, chat), chat)
-    lp = {L: logp[letter_id(tok, L, chat)].item() for L in options}
+    lp = {L: logp[letter_id(tok, L, chat)].item() for L in letters}
     mass = sum(math.exp(v) for v in lp.values())
     pred = max(lp, key=lp.get)
-    return {"gold": gold.lower(), "pred": pred, "correct": pred.lower() == gold.lower(),
+    return {"gold": gold.lower(), "pred": pred.lower(), "correct": pred == gold,
             **{f"p_{L.lower()}": math.exp(v) / mass for L, v in lp.items()},
-            "margin": lp[gold] - max(v for L, v in lp.items() if L != gold.lower()),
+            "margin": lp[gold] - max(v for L, v in lp.items() if L != gold),
             "letter_mass": mass}
 
 # memorization
