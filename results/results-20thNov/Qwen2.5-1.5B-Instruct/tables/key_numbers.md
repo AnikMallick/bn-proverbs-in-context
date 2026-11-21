@@ -1,0 +1,16 @@
+**Model:** `Qwen/Qwen2.5-1.5B-Instruct` · metric: mean over option orders · 600 items
+- **Knowing vs using:** x4 en 0.689 / bn 0.316 (gap 37.3 pts); x1 en 0.878 / bn 0.517 (gap 36.2 pts); the conversation closes 3% of the gap
+- **Question following (en):** asked meaning 0.878 · asked NOT 0.699 · no question 0.909 · none-of-these 0.212
+- **Question following (bn):** asked meaning 0.517 · asked NOT 0.384 · no question 0.688 · none-of-these 0.590
+- **3 options (x5):** en 0.837 · bn 0.413
+- **Persona en C1a on en conversations:** -0.5 pts [-1.9, +0.8]
+- **Persona en C1b on en conversations:** +0.2 pts [-1.6, +1.8]
+- **Persona bn C1a on en conversations:** -1.6 pts [-2.8, -0.3]
+- **Persona bn C1b on en conversations:** -1.6 pts [-3.1, -0.1]
+- **Persona en C1a on bn conversations:** -2.7 pts [-4.6, -0.8]
+- **Persona en C1b on bn conversations:** +1.4 pts [-1.9, +4.6]
+- **Persona bn C1a on bn conversations:** +4.7 pts [+2.6, +6.8]
+- **Persona bn C1b on bn conversations:** +4.5 pts [+2.2, +7.0]
+- **Word-overlap shortcut (en):** correct vs literal 0.757, correct vs plausible 0.289
+- **Word-overlap shortcut (bn):** correct vs literal 0.670, correct vs plausible 0.393
+- **Order robustness:** same answer in every order for 77% of items on average (lowest: x8_bn_C1b 34%)

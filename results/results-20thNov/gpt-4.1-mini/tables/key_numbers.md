@@ -1,0 +1,15 @@
+**Model:** `gpt-4.1-mini` · metric: mean over option orders · 600 items
+- **Knowing vs using:** x4 en 0.840 / bn 0.890 (gap -5.0 pts); x1 en 0.678 / bn 0.852 (gap -17.3 pts)
+- **Question following (en):** asked meaning 0.678 · asked NOT 0.852 · no question 0.695 · none-of-these 0.113
+- **Question following (bn):** asked meaning 0.852 · asked NOT 0.702 · no question 0.797 · none-of-these 0.083
+- **3 options (x5):** en 0.720 · bn 0.817
+- **Persona en C1a on en conversations:** -0.2 pts [-3.0, +2.7]
+- **Persona en C1b on en conversations:** +14.5 pts [+10.8, +18.2]
+- **Persona bn C1a on en conversations:** -1.5 pts [-4.0, +0.8]
+- **Persona bn C1b on en conversations:** +6.7 pts [+3.7, +9.8]
+- **Persona en C1a on bn conversations:** +1.7 pts [-0.2, +3.3]
+- **Persona en C1b on bn conversations:** +3.7 pts [+1.3, +6.2]
+- **Persona bn C1a on bn conversations:** +0.3 pts [-1.7, +2.5]
+- **Persona bn C1b on bn conversations:** +1.7 pts [-0.7, +4.3]
+- **Word-overlap shortcut (en):** correct vs literal 0.750, correct vs plausible 0.312
+- **Word-overlap shortcut (bn):** correct vs literal 0.673, correct vs plausible 0.422

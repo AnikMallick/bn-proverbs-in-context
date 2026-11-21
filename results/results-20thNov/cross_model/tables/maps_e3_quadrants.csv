@@ -1,0 +1,4 @@
+model,knows & uses,"knows, doesn't use",uses without knowing,neither,memorised,proverbs
+OLMo-2-1B,0.025,0.0,0.975,0.0,0.025,200
+Gemma-3-1B,0.08,0.005,0.805,0.11,0.085,200
+BLOOMZ-7B1,0.135,0.025,0.725,0.115,0.16,200

@@ -1,0 +1,16 @@
+**Model:** `bigscience/bloomz-7b1-mt` · metric: mean over option orders · 600 items
+- **Knowing vs using:** x4 en 0.913 / bn 0.583 (gap 33.1 pts); x1 en 0.977 / bn 0.846 (gap 13.1 pts); the conversation closes 60% of the gap
+- **Question following (en):** asked meaning 0.977 · asked NOT 0.495 · no question 0.975 · none-of-these 0.060
+- **Question following (bn):** asked meaning 0.846 · asked NOT 0.161 · no question 0.904 · none-of-these 0.172
+- **3 options (x5):** en 0.856 · bn 0.710
+- **Persona en C1a on en conversations:** +0.2 pts [-0.2, +0.8]
+- **Persona en C1b on en conversations:** -0.3 pts [-1.0, +0.4]
+- **Persona bn C1a on en conversations:** -0.2 pts [-0.8, +0.4]
+- **Persona bn C1b on en conversations:** +0.1 pts [-0.7, +0.9]
+- **Persona en C1a on bn conversations:** -0.6 pts [-1.9, +0.7]
+- **Persona en C1b on bn conversations:** -4.9 pts [-6.9, -3.1]
+- **Persona bn C1a on bn conversations:** +1.2 pts [-0.2, +2.5]
+- **Persona bn C1b on bn conversations:** -2.9 pts [-4.6, -1.2]
+- **Word-overlap shortcut (en):** correct vs literal 0.757, correct vs plausible 0.289
+- **Word-overlap shortcut (bn):** correct vs literal 0.670, correct vs plausible 0.393
+- **Order robustness:** same answer in every order for 84% of items on average (lowest: x2_en 17%)
