@@ -5,7 +5,9 @@
 Code, data and notebooks for our MTech project (CS6803-TNLP-2026, IIT Hyderabad).
 Anik Mallick · Prof. Maunendra D
 
-![Same conversation, opposite question](results/results-20thNov/cross_model/figs/C0_cover_opposite_question.png)
+**Links:** [Code (GitHub)](https://github.com/AnikMallick/bn-proverbs-in-context) · [Data (Kaggle)](https://www.kaggle.com/datasets/amallick0507/probad) · [LoRA adapters (Hugging Face)](https://huggingface.co/anik-owl/qwen2.5-3b-instruct-bn-proverbs-lora)
+
+![Same conversation, opposite question](results/C0_cover_opposite_question.png)
 
 ## In short
 
@@ -79,37 +81,6 @@ The tests measure three different abilities: **interpretation** (x1, x4, x5), **
 
 **LoRA settings (both runs).** QLoRA on Qwen2.5-3B-Instruct (4-bit NF4); rank 16, alpha 32, dropout 0.05 on q, k, v, o, gate, up and down projections; 3 epochs; paged 8-bit AdamW, learning rate 2e-4 (cosine, 10 warm-up steps), weight decay 0.01; effective batch 16; fp16 with gradient checkpointing; max length 512; loss on the answer letter only; best checkpoint by validation loss; seed 0. Run 1 trains on x1 + x5 (3,000 prompts), run 2 on x1 + x2 + x5 (4,200 prompts).
 
-## Repository layout
-
-```
-probad/                 the Python package
-  schema.py             item model + validation (format checks, word-overlap and leak checks)
-  builder.py            item -> prompts (language × spelling × format × option order)
-  constants.py          fixed question text (EN/BN), option keys, persona prompts
-  scoring.py            load a model, letter log-probs per prompt
-  metrics.py            collapse option orders, accuracy + bootstrap CI, paired comparison
-  utils.py              JSONL, text normalisation, stopwords
-experiments.py          MAPS-style experiments E1–E9
-maps_builder.py         MAPS-exact prompt patterns
-data/
-  test.jsonl, train.jsonl, val.jsonl     the items
-  proverbs_v1.csv                        the proverb list with all labels and the split
-  romanisation_v1.md                     romanisation rules
-  validation/                            GPT-6.2 validator record for every item
-notebooks/              runs, LoRA training and evaluation, GPT reference, analysis and charts
-```
-
-Main notebooks:
-
-| Notebook | What it does |
-|---|---|
-| x-tests runner | runs x1–x8 for one open model, writes `raw/*.csv` |
-| GPT reference | runs x1–x8 for GPT-4.1-mini through the API |
-| MAPS-style | runs E1–E9 |
-| LoRA training | builds the training prompts and trains the adapter |
-| LoRA evaluation | scores the 4-bit base and the adapter (core tests + x2r) |
-| validation | GPT-6.2 validation and its charts |
-| `probad_cross_model_v2.ipynb` | collects every run and draws all cross-model and write-up charts |
 
 ## Quick start
 
