@@ -14,12 +14,15 @@ Qwen2.5-3B,gloss_only,-0.5833333333333334,-4.083333333333333,2.9166666666666665
 Qwen2.5-7B,bengali,-4.25,-6.583333333333333,-2.166666666666667
 Qwen2.5-7B,gloss,0.5,-1.9166666666666665,3.0833333333333335
 Qwen2.5-7B,gloss_only,-2.5,-6.0,0.9166666666666666
-Qwen2.5-3B + LoRA,bengali,,,
-Qwen2.5-3B + LoRA,gloss,,,
-Qwen2.5-3B + LoRA,gloss_only,,,
 Qwen2.5-3B + LoRA Base,bengali,,,
 Qwen2.5-3B + LoRA Base,gloss,,,
 Qwen2.5-3B + LoRA Base,gloss_only,,,
+Qwen2.5-3B + LoRA X1-5,bengali,,,
+Qwen2.5-3B + LoRA X1-5,gloss,,,
+Qwen2.5-3B + LoRA X1-5,gloss_only,,,
+Qwen2.5-3B + LoRA X1-2-5,bengali,,,
+Qwen2.5-3B + LoRA X1-2-5,gloss,,,
+Qwen2.5-3B + LoRA X1-2-5,gloss_only,,,
 GPT-4.1,bengali,4.166666666666666,0.16666666666666669,8.5
 GPT-4.1,gloss,26.0,21.666666666666668,30.333333333333336
 GPT-4.1,gloss_only,20.333333333333332,15.666666666666668,25.166666666666664
